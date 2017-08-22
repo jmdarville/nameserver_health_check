@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+#!-*- coding: utf-8 -*-
+
+# nameserver_health_check
+# author: jdarville
+
+import socket
+import dns
+import dns.resolver
+import dns.query
+import ipaddress
+import os
+from threading import Timer
+
+# Specify nameservers by hostname as these are less likely to change
+# than IP Addresses
+nameservers = ['ns1.tok.pnap.net', 
+               'ns2.tok.pnap.net', 
+               'ns1.osk001.pnap.net', 
+               'ns2.osk001.pnap.net',
+               'ns1.google.com', 
+               'ns1.level3.net',
+               'ns1.bobofett.com.jp',
+               '216.63.168.116' ]
+domain = 'bbc.co.uk'
+record = 'A'
+
+resolver = dns.resolver.Resolver(configure = False)
+
+#def thirty_second_timer():
+#  timer = Timer(30.0, )
+
+# We need to check that the namserver actually exists before
+# querying it
+def does_nameserver_exist(server):
+  exists = False
+  try:
+    nameserver_ip = socket.gethostbyname(server)
+    exists = True
+  except:
+     socket.error
+  return exists
+
+# This will be used only if the nameserver exists to avoid the script failing
+# because it cannot resolved the nameserver's hostname
+def check_nameserver(server):
+
+  nameserver_ip = socket.gethostbyname(server)
+
+  if nameserver_ip:
+    # assume the nameserver is dead and try to falsify this
+    dead = True
+    query = dns.message.make_query(domain, dns.rdatatype.NS)
+    response = dns.query.udp(query, nameserver_ip)
+    #print(response)
+    rcode = response.rcode()
+    
+    # To view the rcode in human readable format use this
+    #rcode = dns.rcode.to_text(rc)
+    
+    # We expect the rcode to be NOERROR is the nameserver is
+    # alive and working
+    if rcode != dns.rcode.NOERROR:
+      if rcode == dns.rcode.NXDOMAIN:
+        # This just indicates the domain is incorrect or 
+        # does not exist so send an alert to specify a valid domain
+        print(domain, 'does not exist. Please enter a valid domain')
+      elif rcode == dns.rcode.SERVFAIL:
+        # Server failed. Maybe server is dead
+        # Try again in 30 seconds
+        # If this fails ping IP address
+        # If ping fails, try query again in 10 seconds
+        # If second query fails, ping again in five seconds
+        # If second ping fails, assume server is dead and alert
+        
+        print(nameserver, 'is a former server, pushing up the daisies!')
+    else:
+      dead = False
+    return dead
+  else:
+    print('Undefined Error')
+
+def ping(host):
+  #default behaviour is to assume it's down
+  down = True
+  response = os.system("ping -c 1 " + host + " >/dev/null")
+
+  if response != 1:
+    down = False
+  else:
+    print("It's down")
+    down = True
+  return down
+
+# Let's get to work!
+for nameserver in nameservers:
+  if does_nameserver_exist(nameserver) is True:
+    if check_nameserver(nameserver) != False:
+      print(nameserver, ": It's dead, jim")
+      # Ping server to confirm L3 connectivity 
+    #  if ping(domain) != False:
+        # Remote Server is up so try check_nameserver again
+    #     print(nameserver, 'is dead!')
+    else:
+      print(nameserver, ': it lives!')
+  else:
+    print(nameserver, ' does not exist so didn\'t do anything')
+
