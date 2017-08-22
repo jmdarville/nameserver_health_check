@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 #!-*- coding: utf-8 -*-
-
 # nameserver_health_check
-# author: jdarville
+# author: jmdarville
 
 import socket
 import dns
@@ -23,11 +22,8 @@ record = 'A'
 
 resolver = dns.resolver.Resolver(configure = False)
 
-#def thirty_second_timer():
-#  timer = Timer(30.0, )
-
 # We need to check that the namserver actually exists before
-# querying it
+# querying it. Assume that it doesn't
 def does_nameserver_exist(server):
   exists = False
   try:
@@ -38,7 +34,7 @@ def does_nameserver_exist(server):
   return exists
 
 # This will be used only if the nameserver exists to avoid the script failing
-# because it cannot resolved the nameserver's hostname
+# because it cannot resolve the nameserver's hostname
 def check_nameserver(server):
 
   nameserver_ip = socket.gethostbyname(server)
@@ -62,6 +58,7 @@ def check_nameserver(server):
         # does not exist so send an alert to specify a valid domain
         print(domain, 'does not exist. Please enter a valid domain')
       elif rcode == dns.rcode.SERVFAIL:
+        # This would be better in seperate functions 
         # Server failed. Maybe server is dead
         # Try again in 30 seconds
         # If this fails ping IP address
@@ -79,14 +76,12 @@ def check_nameserver(server):
 def ping(host):
   #default behaviour is to assume it's down
   down = True
-  response = os.system("ping -c 1 " + host + " >/dev/null")
+  response = os.system("ping -c 1 -W 2 " + host + " >/dev/null")
 
-  if response != 1:
+  if response == 0:
     down = False
-  else:
-    print("It's down")
-    down = True
   return down
+
 
 # Let's get to work!
 for nameserver in nameservers:
