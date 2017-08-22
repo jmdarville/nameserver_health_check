@@ -14,11 +14,7 @@ from threading import Timer
 
 # Specify nameservers by hostname as these are less likely to change
 # than IP Addresses
-nameservers = ['ns1.tok.pnap.net', 
-               'ns2.tok.pnap.net', 
-               'ns1.osk001.pnap.net', 
-               'ns2.osk001.pnap.net',
-               'ns1.google.com', 
+nameservers = ['ns1.google.com', 
                'ns1.level3.net',
                'ns1.bobofett.com.jp',
                '216.63.168.116' ]
