@@ -10,17 +10,35 @@ import dns.query
 import ipaddress
 import os
 from threading import Timer
+import smtplib
+import email
+from email.mime.text import MIMEText
 
 # Specify nameservers by hostname as these are less likely to change
 # than IP Addresses
-nameservers = ['ns1.google.com', 
-               'ns1.level3.net',
-               'ns1.bobofett.com.jp',
-               '216.63.168.116' ]
+nameservers = [' ',
+               ' ',
+               ' ',
+               ' ' ]
+
 domain = 'bbc.co.uk'
 record = 'A'
 
 resolver = dns.resolver.Resolver(configure = False)
+resolver.timeout = 2
+resolver.lifetime = 1
+
+def send_alert(nameserver, subject, details):
+  content = str(details)
+  message = MIMEText(content, 'plain')
+  message['From'] = ''
+  message['To'] = ''
+  message['Subject'] = '[' + nameserver + '] ' + subject
+  full_message = message.as_string()
+
+  server = smtplib.SMTP("localhost")
+  server.sendmail("", "", full_message)
+  server.close()
 
 # We need to check that the namserver actually exists before
 # querying it. Assume that it doesn't
@@ -33,46 +51,6 @@ def does_nameserver_exist(server):
      socket.error
   return exists
 
-# This will be used only if the nameserver exists to avoid the script failing
-# because it cannot resolve the nameserver's hostname
-def check_nameserver(server):
-
-  nameserver_ip = socket.gethostbyname(server)
-
-  if nameserver_ip:
-    # assume the nameserver is dead and try to falsify this
-    dead = True
-    query = dns.message.make_query(domain, dns.rdatatype.NS)
-    response = dns.query.udp(query, nameserver_ip)
-    #print(response)
-    rcode = response.rcode()
-    
-    # To view the rcode in human readable format use this
-    #rcode = dns.rcode.to_text(rc)
-    
-    # We expect the rcode to be NOERROR is the nameserver is
-    # alive and working
-    if rcode != dns.rcode.NOERROR:
-      if rcode == dns.rcode.NXDOMAIN:
-        # This just indicates the domain is incorrect or 
-        # does not exist so send an alert to specify a valid domain
-        print(domain, 'does not exist. Please enter a valid domain')
-      elif rcode == dns.rcode.SERVFAIL:
-        # This would be better in seperate functions 
-        # Server failed. Maybe server is dead
-        # Try again in 30 seconds
-        # If this fails ping IP address
-        # If ping fails, try query again in 10 seconds
-        # If second query fails, ping again in five seconds
-        # If second ping fails, assume server is dead and alert
-        
-        print(nameserver, 'is a former server, pushing up the daisies!')
-    else:
-      dead = False
-    return dead
-  else:
-    print('Undefined Error')
-
 def ping(host):
   #default behaviour is to assume it's down
   down = True
@@ -82,18 +60,36 @@ def ping(host):
     down = False
   return down
 
+# This will be used only if the nameserver exists to avoid the script failing
+# because it cannot resolve the nameserver's hostname
+def check_nameserver(server):
+
+  nameserver_ip = socket.gethostbyname(server)
+  if nameserver_ip:
+    # assume the nameserver is dead and try to falsify this
+    # dead = True
+    query = dns.message.make_query(domain, dns.rdatatype.NS)
+    response = dns.query.udp(query, nameserver_ip)
+    #print(response)
+    rcode = response.rcode()
+    
+    # To view the rcode in human readable format use this
+    #rcode = dns.rcode.to_text(rc)
+    return dns.rcode.to_text(rcode)
+  else:
+    print('Undefined Error')
+
 
 # Let's get to work!
 for nameserver in nameservers:
   if does_nameserver_exist(nameserver) is True:
-    if check_nameserver(nameserver) != False:
-      print(nameserver, ": It's dead, jim")
-      # Ping server to confirm L3 connectivity 
-    #  if ping(domain) != False:
-        # Remote Server is up so try check_nameserver again
-    #     print(nameserver, 'is dead!')
-    else:
-      print(nameserver, ': it lives!')
-  else:
-    print(nameserver, ' does not exist so didn\'t do anything')
+    status = check_nameserver(nameserver)
+    if status  == 'NXDOMAIN':
+      send_alert(nameserver, 'Warning: Invalid Domain', domain + ' does not exist. Please enter a valid domain')
+    elif status == 'REFUSED':
+      send_alert(nameserver, 'Warning: Query Refused', ' Query was refused ')
+    elif status == 'FORMERR':
+      send_alert(nameserver, 'Warning: Malformatted Query', ' Server could not interpret the query. Please check')
+    elif status == 'SERVFAIL':
+      send_alert(nameserver, 'Warning: Server Failure', ' Server could not process the query. Please check')
 
