@@ -16,11 +16,14 @@ from email.mime.text import MIMEText
 
 # Specify nameservers by hostname as these are less likely to change
 # than IP Addresses
+# Would be better to have these in an external file
 nameservers = ['ns1.tok.pnap.net',
                'ns2.tok.pnap.net',
                'ns1.osk001.pnap.net',
-               'ns2.osk001.pnap.net' ]
+               'ns2.osk001.pnap.net',
+               'ns99.tok.pnap.net' ]
 
+# Would multiple domains and records be better?
 domain = 'bbc.co.uk'
 record = 'A'
 
@@ -31,13 +34,13 @@ resolver.lifetime = 1
 def send_alert(nameserver, subject, details):
   content = str(details)
   message = MIMEText(content, 'plain')
-  message['From'] = 'John Darville <jdarville@internap.co.jp>'
-  message['To'] = 'John Darville <jdarvillle@internap.co.jp>'
+  message['From'] = ''
+  message['To'] = ''
   message['Subject'] = '[' + nameserver + '] ' + subject
   full_message = message.as_string()
 
   server = smtplib.SMTP("localhost")
-  server.sendmail("jdarville@internap.co.jp", "jdarville@internap.co.jp", full_message)
+  server.sendmail("", "", full_message)
   server.close()
 
 #need to check that the namserver actually exists before
