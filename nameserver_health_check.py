@@ -14,15 +14,8 @@ import smtplib
 import email
 from email.mime.text import MIMEText
 
-# Specify nameservers by hostname as these are less likely to change
-# than IP Addresses
-# Would be better to have these in an external file
-nameservers = ['ns1.tok.pnap.net',
-               'ns2.tok.pnap.net',
-               'ns1.osk001.pnap.net',
-               'ns2.osk001.pnap.net',
-               'ns99.tok.pnap.net' ]
 
+nameserver_list = '/path/to/list/of/nameservers'
 # Would multiple domains and records be better?
 domain = 'bbc.co.uk'
 record = 'A'
@@ -68,31 +61,43 @@ def ping(host):
 def check_nameserver(server):
 
   nameserver_ip = socket.gethostbyname(server)
+  status = 0
   if nameserver_ip:
     # assume the nameserver is dead and try to falsify this
     # dead = True
-    query = dns.message.make_query(domain, dns.rdatatype.NS)
-    response = dns.query.udp(query, nameserver_ip)
-    #print(response)
-    rcode = response.rcode()
+    try:
+      query = dns.message.make_query(domain, dns.rdatatype.NS)
+      response = dns.query.udp(query, nameserver_ip, timeout=2)
+      #response = resolver.query(query)
+      #print(response)
+      rcode = response.rcode()
     
-    # To view the rcode in human readable format use this
-    #rcode = dns.rcode.to_text(rc)
-    return dns.rcode.to_text(rcode)
+      # To view the rcode in human readable format use this
+      #rcode = dns.rcode.to_text(rc)
+      status = dns.rcode.to_text(rcode)
+      #return dns.rcode.to_text(rcode)
+    except dns.exception.DNSException as ex:
+      status = ex.args[0]
+
+    return status
   else:
     print('Undefined Error')
 
+# Iterate over the nameservers in the ns_list
+with open(nameserver_list, 'r') as ns:
+  nameservers = ns.read().splitlines()
+  for nameserver in nameservers:
+    if does_nameserver_exist(nameserver) is True:
+      status = check_nameserver(nameserver) 
+      if status  == 'NXDOMAIN':
+        send_alert(nameserver, 'Warning: Invalid Domain', domain + ' does not exist. Please enter a valid domain')
+      elif status == 'REFUSED':
+        send_alert(nameserver, 'Warning: Query Refused', ' Query was refused ')
+      elif status == 'FORMERR':
+        send_alert(nameserver, 'Warning: Malformatted Query', ' Server could not interpret the query. Please check')
+      elif status == 'SERVFAIL':
+        send_alert(nameserver, 'Warning: Server Failure', ' Server could not process the query. Please check')
+      elif status == 'The DNS operation timed out.':
+        send_alert(nameserver, 'Warning: Query Timed out', ' The DNS query time out. Please check')
 
-# Let's get to work!
-for nameserver in nameservers:
-  if does_nameserver_exist(nameserver) is True:
-    status = check_nameserver(nameserver)
-    if status  == 'NXDOMAIN':
-      send_alert(nameserver, 'Warning: Invalid Domain', domain + ' does not exist. Please enter a valid domain')
-    elif status == 'REFUSED':
-      send_alert(nameserver, 'Warning: Query Refused', ' Query was refused ')
-    elif status == 'FORMERR':
-      send_alert(nameserver, 'Warning: Malformatted Query', ' Server could not interpret the query. Please check')
-    elif status == 'SERVFAIL':
-      send_alert(nameserver, 'Warning: Server Failure', ' Server could not process the query. Please check')
 
